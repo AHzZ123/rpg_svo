@@ -70,16 +70,16 @@ void Reprojector::reprojectMap(
   // Identify those Keyframes which share a common field of view.
   SVO_START_TIMER("reproject_kfs");
   list< pair<FramePtr,double> > close_kfs;
-  map_.getCloseKeyframes(frame, close_kfs);
+  map_.getCloseKeyframes(frame, close_kfs); // 与当前帧位姿变化较小的关键帧集合
 
-  // Sort KFs with overlap according to their closeness
+  // Sort KFs with overlap according to their closeness，根据关键帧的地图点数排序
   close_kfs.sort(boost::bind(&std::pair<FramePtr, double>::second, _1) <
                  boost::bind(&std::pair<FramePtr, double>::second, _2));
 
   // Reproject all mappoints of the closest N kfs with overlap. We only store
   // in which grid cell the points fall.
   size_t n = 0;
-  overlap_kfs.reserve(options_.max_n_kfs);
+  overlap_kfs.reserve(options_.max_n_kfs);  // 只选取前options_.max_n_kfs个关键帧作为局部关键帧
   for(auto it_frame=close_kfs.begin(), ite_frame=close_kfs.end();
       it_frame!=ite_frame && n<options_.max_n_kfs; ++it_frame, ++n)
   {
@@ -98,6 +98,7 @@ void Reprojector::reprojectMap(
       if((*it_ftr)->point->last_projected_kf_id_ == frame->id_)
         continue;
       (*it_ftr)->point->last_projected_kf_id_ = frame->id_;
+      // 将局部关键帧的特征点投影到当前帧的cell里面，并添加该局部关键帧至重叠关键帧中
       if(reprojectPoint(frame, (*it_ftr)->point))
         overlap_kfs.back().second++;
     }
@@ -111,8 +112,10 @@ void Reprojector::reprojectMap(
     auto it=map_.point_candidates_.candidates_.begin();
     while(it!=map_.point_candidates_.candidates_.end())
     {
+      // 将地图点投影到当前帧的cell里面
       if(!reprojectPoint(frame, it->first))
       {
+        // 删除在当前帧出现次数较少的地图点
         it->first->n_failed_reproj_ += 3;
         if(it->first->n_failed_reproj_ > 30)
         {
@@ -150,8 +153,10 @@ bool Reprojector::pointQualityComparator(Candidate& lhs, Candidate& rhs)
 
 bool Reprojector::reprojectCell(Cell& cell, FramePtr frame)
 {
+  // 对于某个cell，可能存在很多points。对这些points根据类型进行排序
   cell.sort(boost::bind(&Reprojector::pointQualityComparator, _1, _2));
   Cell::iterator it=cell.begin();
+  // 遍历当前cell里面的points，
   while(it!=cell.end())
   {
     ++n_trials_;
@@ -164,6 +169,7 @@ bool Reprojector::reprojectCell(Cell& cell, FramePtr frame)
 
     bool found_match = true;
     if(options_.find_match_direct)
+      // 优化地图点在当前帧中的像素位置it->px
       found_match = matcher_.findMatchDirect(*it->pt, *frame, it->px);
     if(!found_match)
     {
@@ -195,6 +201,7 @@ bool Reprojector::reprojectCell(Cell& cell, FramePtr frame)
 
     // If the keyframe is selected and we reproject the rest, we don't have to
     // check this point anymore.
+    // 确保每个cell里面最多只有一个point
     it = cell.erase(it);
 
     // Maximum one point per cell.

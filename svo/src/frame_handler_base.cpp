@@ -29,6 +29,7 @@
 namespace svo
 {
 
+// 观察性能表现的宏
 // definition of global and static variables which were declared in the header
 #ifdef SVO_TRACE
 vk::PerformanceMonitor* g_permon = NULL;
@@ -128,13 +129,14 @@ int FrameHandlerBase::finishFrameProcessingCommon(
     SVO_LOG(n_candidates);
   }
 #endif
-
+  // 默认帧追踪失败，进行重定位
   if(dropout == RESULT_FAILURE &&
       (stage_ == STAGE_DEFAULT_FRAME || stage_ == STAGE_RELOCALIZING ))
   {
     stage_ = STAGE_RELOCALIZING;
     tracking_quality_ = TRACKING_INSUFFICIENT;
   }
+  // 初始化失败，全部重置
   else if (dropout == RESULT_FAILURE)
     resetAll();
   if(set_reset_)

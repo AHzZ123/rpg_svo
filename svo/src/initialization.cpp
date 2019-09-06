@@ -36,15 +36,17 @@ InitResult KltHomographyInit::addFirstFrame(FramePtr frame_ref)
     return FAILURE;
   }
   frame_ref_ = frame_ref;
+  // 将第一帧的位置作为光流追踪中的第二帧对应像素点的初始值
   px_cur_.insert(px_cur_.begin(), px_ref_.begin(), px_ref_.end());
   return SUCCESS;
 }
 
 InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur)
 {
+  // 光流法追踪特征点在新的一帧的位置
   trackKlt(frame_ref_, frame_cur, px_ref_, px_cur_, f_ref_, f_cur_, disparities_);
   SVO_INFO_STREAM("Init: KLT tracked "<< disparities_.size() <<" features");
-
+  // 初始化运动不能过小
   if(disparities_.size() < Config::initMinTracked())
     return FAILURE;
 
@@ -52,7 +54,7 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur)
   SVO_INFO_STREAM("Init: KLT "<<disparity<<"px average disparity.");
   if(disparity < Config::initMinDisparity())
     return NO_KEYFRAME;
-
+  // 计算单应矩阵
   computeHomography(
       f_ref_, f_cur_,
       frame_ref_->cam_->errorMultiplier2(), Config::poseOptimThresh(),
@@ -66,12 +68,19 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur)
   }
 
   // Rescale the map such that the mean scene depth is equal to the specified scale
+  // 由于单目视觉的尺度不确定性，将尺度设置为scale
+  // 目前是通过计算下一帧所有特征对应的3D点深度的中值作为尺度计算值，这也就限制了算法的使用场景，定位相机应尽可能的对着一个平面，所以朝地是一个很好的选择
   vector<double> depth_vec;
   for(size_t i=0; i<xyz_in_cur_.size(); ++i)
     depth_vec.push_back((xyz_in_cur_[i]).z());
   double scene_depth_median = vk::getMedian(depth_vec);
   double scale = Config::mapScale()/scene_depth_median;
   frame_cur->T_f_w_ = T_cur_from_ref_ * frame_ref_->T_f_w_;
+  // 对位移变换添加尺度
+  // frame_ref_->pos()：第一帧的世界坐标，即(0, 0, 0)，所以无需缩放后再相加，记为t_1
+  // frame_cur->pos()：第二帧的世界坐标，记为t_2
+  // 缩放后的世界坐标为t_2' = t_1 + scale * (t_2 - t_1) = scale * t_2   ！！这里待考证
+  // 然后计算在第二帧下的坐标可以用变换矩阵的逆来计算，参考slambook公式(3.13)
   frame_cur->T_f_w_.translation() =
       -frame_cur->T_f_w_.rotation_matrix()*(frame_ref_->pos() + scale*(frame_cur->pos() - frame_ref_->pos()));
 
@@ -83,9 +92,9 @@ InitResult KltHomographyInit::addSecondFrame(FramePtr frame_cur)
     Vector2d px_ref(px_ref_[*it].x, px_ref_[*it].y);
     if(frame_ref_->cam_->isInFrame(px_cur.cast<int>(), 10) && frame_ref_->cam_->isInFrame(px_ref.cast<int>(), 10) && xyz_in_cur_[*it].z() > 0)
     {
-      Vector3d pos = T_world_cur * (xyz_in_cur_[*it]*scale);
+      Vector3d pos = T_world_cur * (xyz_in_cur_[*it]*scale);  // 将相机坐标系下的点转为世界坐标
       Point* new_point = new Point(pos);
-
+      // 将同一点的特征点保存起来，这样点删除了，特征也可以删除
       Feature* ftr_cur(new Feature(frame_cur.get(), new_point, px_cur, f_cur_[*it], 0));
       frame_cur->addFeature(ftr_cur);
       new_point->addFrameRef(ftr_cur);
@@ -151,6 +160,7 @@ void trackKlt(
   vector<Vector3d>::iterator f_ref_it = f_ref.begin();
   f_cur.clear(); f_cur.reserve(px_cur.size());
   disparities.clear(); disparities.reserve(px_cur.size());
+  // 删除追踪失败的特征点
   for(size_t i=0; px_ref_it != px_ref.end(); ++i)
   {
     if(!status[i])
@@ -160,7 +170,7 @@ void trackKlt(
       f_ref_it = f_ref.erase(f_ref_it);
       continue;
     }
-    f_cur.push_back(frame_cur->c2f(px_cur_it->x, px_cur_it->y));
+    f_cur.push_back(frame_cur->c2f(px_cur_it->x, px_cur_it->y));  // 归一化坐标
     disparities.push_back(Vector2d(px_ref_it->x - px_cur_it->x, px_ref_it->y - px_cur_it->y).norm());
     ++px_ref_it;
     ++px_cur_it;
@@ -187,6 +197,7 @@ void computeHomography(
   vk::Homography Homography(uv_ref, uv_cur, focal_length, reprojection_threshold);
   Homography.computeSE3fromMatches();
   vector<int> outliers;
+  // 将重投影误差较大的匹配点视为outliers，通过三角化计算空间点三维坐标
   vk::computeInliers(f_cur, f_ref,
                      Homography.T_c2_from_c1.rotation_matrix(), Homography.T_c2_from_c1.translation(),
                      reprojection_threshold, focal_length,

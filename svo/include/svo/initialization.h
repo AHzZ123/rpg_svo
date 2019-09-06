@@ -34,7 +34,7 @@ class KltHomographyInit {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  FramePtr frame_ref_;
+  FramePtr frame_ref_;  // 参考帧
   KltHomographyInit() {};
   ~KltHomographyInit() {};
   InitResult addFirstFrame(FramePtr frame_ref);

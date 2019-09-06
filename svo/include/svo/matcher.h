@@ -91,7 +91,7 @@ public:
     {}
   } options_;
 
-  uint8_t patch_[patch_size_*patch_size_] __attribute__ ((aligned (16)));
+  uint8_t patch_[patch_size_*patch_size_] __attribute__ ((aligned (16))); // 让编译器实现字节对齐
   uint8_t patch_with_border_[(patch_size_+2)*(patch_size_+2)] __attribute__ ((aligned (16)));
   Matrix2d A_cur_ref_;          //!< affine warp matrix
   Vector2d epi_dir_;

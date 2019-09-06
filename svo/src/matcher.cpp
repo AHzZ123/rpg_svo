@@ -137,25 +137,28 @@ bool Matcher::findMatchDirect(
     const Frame& cur_frame,
     Vector2d& px_cur)
 {
+  // 计算与当前帧（当前帧不一定是关键帧）共同观察到该点的角度最小的关键帧
   if(!pt.getCloseViewObs(cur_frame.pos(), ref_ftr_))
     return false;
-
+  // 判断该点是否在关键帧的有效区域
   if(!ref_ftr_->frame->cam_->isInFrame(
       ref_ftr_->px.cast<int>()/(1<<ref_ftr_->level), halfpatch_size_+2, ref_ftr_->level))
     return false;
 
   // warp affine
+  // 计算仿射变换A_cur_ref_
   warp::getWarpMatrixAffine(
       *ref_ftr_->frame->cam_, *cur_frame.cam_, ref_ftr_->px, ref_ftr_->f,
       (ref_ftr_->frame->pos() - pt.pos_).norm(),
       cur_frame.T_f_w_ * ref_ftr_->frame->T_f_w_.inverse(), ref_ftr_->level, A_cur_ref_);
   search_level_ = warp::getBestSearchLevel(A_cur_ref_, Config::nPyrLevels()-1);
+  // 将当前帧的patch_变换到关键帧中
   warp::warpAffine(A_cur_ref_, ref_ftr_->frame->img_pyr_[ref_ftr_->level], ref_ftr_->px,
                    ref_ftr_->level, search_level_, halfpatch_size_+1, patch_with_border_);
-  createPatchFromPatchWithBorder();
+  createPatchFromPatchWithBorder(); // 从warpAffine中得到的patch_with_border_中恢复出patch
 
   // px_cur should be set
-  Vector2d px_scaled(px_cur/(1<<search_level_));
+  Vector2d px_scaled(px_cur/(1<<search_level_)); // 将px_cur变换到搜索的尺度下
 
   bool success = false;
   if(ref_ftr_->type == Feature::EDGELET)
@@ -168,10 +171,12 @@ bool Matcher::findMatchDirect(
   }
   else
   {
+    // 特征对齐，优化该点在当前帧中的位置
     success = feature_alignment::align2D(
       cur_frame.img_pyr_[search_level_], patch_with_border_, patch_,
       options_.align_max_iter, px_scaled);
   }
+  // 还原到原始尺度
   px_cur = px_scaled * (1<<search_level_);
   return success;
 }

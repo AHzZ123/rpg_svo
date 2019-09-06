@@ -114,7 +114,7 @@ void Map::getCloseKeyframes(
     {
       if(keypoint == nullptr)
         continue;
-
+      // 判断五个关键点在当前帧内是否可见，可见则加入到最近的关键帧中
       if(frame->isVisible(keypoint->point->pos_))
       {
         close_kfs.push_back(

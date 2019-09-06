@@ -61,6 +61,7 @@ void FrameHandlerMono::addImage(const cv::Mat& img, const double timestamp)
     return;
 
   // some cleanup from last iteration, can't do before because of visualization
+  // 清除上一帧的相邻关键帧
   core_kfs_.clear();
   overlap_kfs_.clear();
 
@@ -129,6 +130,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processSecondFrame()
 FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame()
 {
   // Set initial pose TODO use prior
+  // 用前一帧的位姿作为先验进行优化，这就要求相机两帧之间的运动不能过大
   new_frame_->T_f_w_ = last_frame_->T_f_w_;
 
   // sparse image align
@@ -142,6 +144,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame()
 
   // map reprojection & feature alignment
   SVO_START_TIMER("reproject");
+  // 将地图点投影到当前帧中，优化其投影位置
   reprojector_.reprojectMap(new_frame_, overlap_kfs_);
   SVO_STOP_TIMER("reproject");
   const size_t repr_n_new_references = reprojector_.n_matches_;
@@ -158,7 +161,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame()
 
   // pose optimization
   SVO_START_TIMER("pose_optimizer");
-  size_t sfba_n_edges_final;
+  size_t sfba_n_edges_final;  // 最终两帧共同观测到的有效点数量，作为优化的约束，不能少于20
   double sfba_thresh, sfba_error_init, sfba_error_final;
   pose_optimizer::optimizeGaussNewton(
       Config::poseOptimThresh(), Config::poseOptimNumIter(), false,
@@ -180,6 +183,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame()
   setTrackingQuality(sfba_n_edges_final);
   if(tracking_quality_ == TRACKING_INSUFFICIENT)
   {
+
     new_frame_->T_f_w_ = last_frame_->T_f_w_; // reset to avoid crazy pose jumps
     return RESULT_FAILURE;
   }
@@ -223,6 +227,7 @@ FrameHandlerBase::UpdateResult FrameHandlerMono::processFrame()
   // if limited number of keyframes, remove the one furthest apart
   if(Config::maxNKfs() > 2 && map_.size() >= Config::maxNKfs())
   {
+    // 删除最远的关键帧
     FramePtr furthest_frame = map_.getFurthestKeyframe(new_frame_->pos());
     depth_filter_->removeKeyframe(furthest_frame); // TODO this interrupts the mapper thread, maybe we can solve this better
     map_.safeDeleteFrame(furthest_frame);

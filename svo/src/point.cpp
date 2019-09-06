@@ -97,21 +97,22 @@ void Point::initNormal()
 bool Point::getCloseViewObs(const Vector3d& framepos, Feature*& ftr) const
 {
   // TODO: get frame with same point of view AND same pyramid level!
-  Vector3d obs_dir(framepos - pos_); obs_dir.normalize();
+  Vector3d obs_dir(framepos - pos_); obs_dir.normalize(); // 从该点观察当前帧的单位向量
   auto min_it=obs_.begin();
   double min_cos_angle = 0;
+  // 遍历观察到该点的关键帧，找出与当前帧观察角度最小的一个
   for(auto it=obs_.begin(), ite=obs_.end(); it!=ite; ++it)
   {
-    Vector3d dir((*it)->frame->pos() - pos_); dir.normalize();
-    double cos_angle = obs_dir.dot(dir);
-    if(cos_angle > min_cos_angle)
+    Vector3d dir((*it)->frame->pos() - pos_); dir.normalize();  // 从该点观察待匹配关键帧的单位向量
+    double cos_angle = obs_dir.dot(dir);                        // 这里是余弦值
+    if(cos_angle > min_cos_angle) // 余弦值越大角度越小
     {
       min_cos_angle = cos_angle;
       min_it = it;
     }
   }
   ftr = *min_it;
-  if(min_cos_angle < 0.5) // assume that observations larger than 60° are useless
+  if(min_cos_angle < 0.5) // assume that observations larger than 60° are useless，cos60° = 0.5
     return false;
   return true;
 }
@@ -133,15 +134,16 @@ void Point::optimize(const size_t n_iter)
     for(auto it=obs_.begin(); it!=obs_.end(); ++it)
     {
       Matrix23d J;
-      const Vector3d p_in_f((*it)->frame->T_f_w_ * pos_);
-      Point::jacobian_xyz2uv(p_in_f, (*it)->frame->T_f_w_.rotation_matrix(), J);
-      const Vector2d e(vk::project2d((*it)->f) - vk::project2d(p_in_f));
-      new_chi2 += e.squaredNorm();
-      A.noalias() += J.transpose() * J;
+      const Vector3d p_in_f((*it)->frame->T_f_w_ * pos_); // 将三维点的坐标从地图坐标系变换到当前帧坐标系
+      Point::jacobian_xyz2uv(p_in_f, (*it)->frame->T_f_w_.rotation_matrix(), J);  // 计算雅可比矩阵
+      // 计算重投影误差，其中(*it)->f是当前帧坐标系下三维点测量值的单位向量，p_in_f是参考帧对应的三维点坐标变换到当前帧坐标系下的坐标
+      const Vector2d e(vk::project2d((*it)->f) - vk::project2d(p_in_f));  
+      new_chi2 += e.squaredNorm();  // 计算L2范数
+      A.noalias() += J.transpose() * J; // noalias避免产生临时变量
       b.noalias() -= J.transpose() * e;
     }
 
-    // solve linear system
+    // solve linear system，使用ldlt cholesky分解求解方程
     const Vector3d dp(A.ldlt().solve(b));
 
     // check if error increased

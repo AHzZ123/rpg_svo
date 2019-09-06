@@ -90,7 +90,7 @@ void Frame::checkKeyPoints(Feature* ftr)
   else if(std::max(std::fabs(ftr->px[0]-cu), std::fabs(ftr->px[1]-cv))
         < std::max(std::fabs(key_pts_[0]->px[0]-cu), std::fabs(key_pts_[0]->px[1]-cv)))
     key_pts_[0] = ftr;
-
+  // 右下角
   if(ftr->px[0] >= cu && ftr->px[1] >= cv)
   {
     if(key_pts_[1] == NULL)
@@ -99,6 +99,7 @@ void Frame::checkKeyPoints(Feature* ftr)
           > (key_pts_[1]->px[0]-cu) * (key_pts_[1]->px[1]-cv))
       key_pts_[1] = ftr;
   }
+  // 右上角
   if(ftr->px[0] >= cu && ftr->px[1] < cv)
   {
     if(key_pts_[2] == NULL)
@@ -107,6 +108,7 @@ void Frame::checkKeyPoints(Feature* ftr)
           > (key_pts_[2]->px[0]-cu) * (key_pts_[2]->px[1]-cv))
       key_pts_[2] = ftr;
   }
+  // 左上角
   if(ftr->px[0] < cv && ftr->px[1] < cv)
   {
     if(key_pts_[3] == NULL)
@@ -115,6 +117,7 @@ void Frame::checkKeyPoints(Feature* ftr)
           > (key_pts_[3]->px[0]-cu) * (key_pts_[3]->px[1]-cv))
       key_pts_[3] = ftr;
   }
+  // 左下角
   if(ftr->px[0] < cv && ftr->px[1] >= cv)
   {
     if(key_pts_[4] == NULL)

@@ -191,6 +191,7 @@ bool align2D(
   float mean_diff = 0;
 
   // Compute pixel location in new image:
+  // 仿射变换已经得到初始值
   float u = cur_px_estimate.x();
   float v = cur_px_estimate.y();
 
@@ -229,7 +230,9 @@ bool align2D(
       for(int x=0; x<patch_size_; ++x, ++it, ++it_ref, ++it_ref_dx, ++it_ref_dy)
       {
         float search_pixel = wTL*it[0] + wTR*it[1] + wBL*it[cur_step] + wBR*it[cur_step+1];
+        // 计算当前帧和参考帧之间的残差
         float res = search_pixel - *it_ref + mean_diff;
+        // 残差乘以梯度为b
         Jres[0] -= res*(*it_ref_dx);
         Jres[1] -= res*(*it_ref_dy);
         Jres[2] -= res;
@@ -250,6 +253,7 @@ bool align2D(
     }
     chi2 = new_chi2;
 */
+    // 更新值为Hinv * b
     update = Hinv * Jres;
     u += update[0];
     v += update[1];

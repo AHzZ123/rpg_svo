@@ -82,6 +82,7 @@ public:
   /// Get number of observations.
   inline size_t nRefs() const { return obs_.size(); }
 
+  // 优化特征点
   /// Optimize point position through minimizing the reprojection error.
   void optimize(const size_t n_iter);
 
@@ -91,6 +92,7 @@ public:
       const Matrix3d& R_f_w,
       Matrix23d& point_jac)
   {
+    // slambook 7.7.3节，计算误差关于空间点的雅可比，参考(7.47)
     const double z_inv = 1.0/p_in_f[2];
     const double z_inv_sq = z_inv*z_inv;
     point_jac(0, 0) = z_inv;
